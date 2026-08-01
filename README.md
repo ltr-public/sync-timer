@@ -19,10 +19,11 @@ Open `http://localhost:3000` on both devices. The container must be reachable fr
 
 ## Connect devices
 
-1. Open the page on the controlling device and select **Create offer**.
-2. Copy the generated token into the display device and select **Accept offer**.
-3. Copy that generated answer back into the controller and select **Accept answer**.
-4. When connected, select **Calibrate and start** on the controller.
+1. On the controlling device, select **I am the controller**, then **Create invitation**.
+2. Copy the invitation to the viewer device.
+3. On the viewer, select **I am the viewer**, paste the invitation, and select **Create response**.
+4. Copy the viewer response into the controller and select **Connect viewer**.
+5. When the status says **Devices connected**, select **Calibrate and start** on the controller.
 
 The controller takes 12 timing samples, retains the three lowest-latency samples, and schedules a start three seconds in the future. This reduces the effect of jitter but cannot eliminate it.
 

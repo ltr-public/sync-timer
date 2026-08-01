@@ -5,52 +5,135 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sync Timer</title>
   <style>
-    :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #101419; color: #eaf2f4; }
-    body { min-height: 100vh; margin: 0; display: grid; place-items: center; }
-    main { width: min(680px, calc(100% - 32px)); }
-    h1 { margin: 0 0 8px; font-size: 1.15rem; letter-spacing: .08em; text-transform: uppercase; color: #9bb0b7; }
-    #timer { font-size: clamp(3.4rem, 15vw, 7rem); line-height: 1; font-weight: 800; letter-spacing: -.07em; color: #50e8c5; font-variant-numeric: tabular-nums; }
-    #track { height: 8px; margin: 24px 0 36px; overflow: hidden; border-radius: 99px; background: #273138; }
-    #bar { height: 100%; width: 12%; border-radius: inherit; background: #50e8c5; transform: translateX(0); }
-    .status { margin-bottom: 22px; color: #a9b9bf; font-size: .9rem; }
-    .status strong { color: #f5cf72; }
-    label { display: block; margin: 18px 0 7px; font-size: .82rem; color: #a9b9bf; }
-    textarea { width: 100%; min-height: 78px; box-sizing: border-box; resize: vertical; padding: 10px; border: 1px solid #3b4a51; border-radius: 4px; background: #182026; color: #eaf2f4; font: .76rem/1.35 inherit; }
-    .actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 12px; }
-    button { border: 0; border-radius: 4px; padding: 10px 13px; background: #50e8c5; color: #06201b; font: 700 .8rem inherit; cursor: pointer; }
-    button.secondary { background: #2d3a41; color: #eaf2f4; }
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #fff; color: #191b1f; }
+    * { box-sizing: border-box; }
+    body { min-width: 320px; min-height: 100vh; margin: 0; background: linear-gradient(150deg, #fff 0%, #f6f7f8 100%); }
+    main { width: min(720px, calc(100% - 32px)); margin: 0 auto; padding: clamp(26px, 6vw, 52px) 0 28px; }
+    h1 { margin: 0; font-size: clamp(1.8rem, 6vw, 2.9rem); letter-spacing: -.055em; line-height: 1; }
+    .intro { max-width: 560px; margin: 14px 0 0; color: #5c6169; font-size: .98rem; line-height: 1.55; }
+    .timer-panel { margin: 34px 0 20px; padding: clamp(20px, 6vw, 38px); border: 1px solid #e1e3e6; border-radius: 18px; background: #fff; box-shadow: 0 14px 38px rgb(21 25 30 / 5%); }
+    #timer { color: #181a1e; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: clamp(3.2rem, 15vw, 7.3rem); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.08em; line-height: .95; text-align: center; }
+    #track { height: 7px; margin-top: 28px; overflow: hidden; border-radius: 999px; background: #e7e8ea; }
+    #bar { width: 12%; height: 100%; border-radius: inherit; background: #26292e; transform: translateX(0); }
+    .status { display: flex; align-items: flex-start; gap: 12px; min-height: 74px; padding: 15px 17px; border: 1px solid #e1e3e6; border-radius: 12px; background: #fff; }
+    .status-dot { flex: 0 0 auto; width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #8a8f97; }
+    .status.is-busy .status-dot { background: #191b1f; animation: pulse 1.15s ease-in-out infinite; }
+    .status.is-success .status-dot { background: #16805c; }
+    .status.is-error { border-color: #ebc7c7; background: #fffafa; }
+    .status.is-error .status-dot { background: #bd3434; }
+    .status-title { display: block; color: #202329; font-size: .9rem; font-weight: 750; }
+    .status-detail { display: block; margin-top: 3px; color: #666c75; font-size: .84rem; line-height: 1.4; }
+    .mode-picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 20px; }
+    .mode-card { min-height: 150px; padding: 20px; border: 1px solid #dedfe3; border-radius: 13px; background: #fff; color: #1d2025; text-align: left; transition: border-color .15s, box-shadow .15s, transform .15s; }
+    .mode-card:hover { border-color: #858a92; box-shadow: 0 8px 20px rgb(0 0 0 / 6%); transform: translateY(-1px); }
+    .mode-card strong, .mode-card span { display: block; }
+    .mode-card strong { font-size: 1rem; }
+    .mode-card span { margin-top: 7px; color: #656b73; font-size: .82rem; font-weight: 400; line-height: 1.45; }
+    .flow { margin-top: 20px; padding: clamp(20px, 5vw, 30px); border: 1px solid #dedfe3; border-radius: 14px; background: #fff; }
+    .flow-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+    h2 { margin: 0; font-size: 1.12rem; letter-spacing: -.02em; }
+    .change-mode { border: 0; padding: 0; background: transparent; color: #565c65; font: inherit; font-size: .8rem; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
+    .step { position: relative; padding: 0 0 25px 43px; }
+    .step:last-child { padding-bottom: 0; }
+    .step::before { position: absolute; top: 0; left: 0; display: grid; width: 27px; height: 27px; place-items: center; border-radius: 50%; background: #25282d; color: #fff; content: attr(data-step); font-size: .77rem; font-weight: 750; }
+    .step:not(:last-child)::after { position: absolute; top: 34px; bottom: 5px; left: 13px; width: 1px; background: #d8dade; content: ""; }
+    .step-title { margin: 1px 0 5px; font-size: .92rem; font-weight: 750; }
+    .step-copy { margin: 0 0 12px; color: #656b73; font-size: .82rem; line-height: 1.45; }
+    textarea { display: block; width: 100%; min-height: 86px; padding: 10px; border: 1px solid #d4d7db; border-radius: 8px; background: #fbfbfc; color: #292d33; font: .72rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; resize: vertical; }
+    textarea:focus { border-color: #202329; outline: 3px solid #20232918; }
+    textarea[readonly] { color: #5a6068; }
+    .button-row { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 11px; }
+    button { min-height: 40px; border: 1px solid transparent; border-radius: 7px; padding: 9px 13px; background: #202329; color: #fff; cursor: pointer; font: 700 .82rem inherit; transition: background .15s, border-color .15s; }
+    button:hover:not(:disabled) { background: #40444a; }
+    button.secondary { border-color: #cdd0d4; background: #fff; color: #292d33; }
+    button.secondary:hover:not(:disabled) { border-color: #7d828a; background: #f6f7f8; }
     button:disabled { cursor: not-allowed; opacity: .45; }
-    .note { margin: 25px 0 0; font: .76rem/1.5 system-ui, sans-serif; color: #8c9da4; }
-    code { color: #c4d5da; }
+    .hidden { display: none; }
+    .note { margin: 23px 0 0; color: #747a82; font-size: .78rem; line-height: 1.5; }
+    footer { margin-top: 44px; color: #969aa0; font-size: .78rem; text-align: center; }
+    footer a { color: inherit; text-underline-offset: 3px; }
+    @keyframes pulse { 50% { opacity: .25; transform: scale(.7); } }
+    @media (max-width: 520px) { .mode-picker { grid-template-columns: 1fr; } .timer-panel { margin-top: 26px; } }
   </style>
 </head>
 <body>
   <main>
-    <h1>Best-effort sync timer</h1>
-    <div id="timer">00:00:000</div>
-    <div id="track"><div id="bar"></div></div>
-    <div class="status" id="status"><strong>Not connected</strong> Create an offer on the controlling device.</div>
+    <h1>Sync Timer</h1>
+    <p class="intro">Use it to coordinate visual cues across devices for filming, presentations, remote demonstrations, or any shared moment where timing matters.</p>
 
-    <label for="token">Connection token</label>
-    <textarea id="token" spellcheck="false" placeholder="Offer or answer token"></textarea>
-    <div class="actions">
-      <button id="create-offer">Create offer (controller)</button>
-      <button id="accept-offer" class="secondary">Accept offer (display)</button>
-      <button id="accept-answer" class="secondary">Accept answer (controller)</button>
-      <button id="start" disabled>Calibrate and start</button>
+    <section class="timer-panel" aria-label="Timer">
+      <div id="timer">00:00:000</div>
+      <div id="track"><div id="bar"></div></div>
+    </section>
+
+    <div class="status" id="status" aria-live="polite">
+      <span class="status-dot"></span>
+      <div><span class="status-title" id="status-title">Choose a role</span><span class="status-detail" id="status-detail">One device controls the start; the other displays the timer.</span></div>
     </div>
-    <p class="note">Copy the offer to the display, copy its generated answer back to the controller, then start there. The displayed uncertainty is an estimate, not a 1 ms guarantee.</p>
+
+    <section id="mode-picker" class="mode-picker" aria-label="Choose device role">
+      <button class="mode-card" id="choose-controller"><strong>I am the controller</strong><span>Create the invitation, connect the viewer, then calibrate and start.</span></button>
+      <button class="mode-card" id="choose-viewer"><strong>I am the viewer</strong><span>Accept an invitation and leave this screen ready to receive the start.</span></button>
+    </section>
+
+    <section id="controller-flow" class="flow hidden" aria-labelledby="controller-heading">
+      <div class="flow-header"><h2 id="controller-heading">Controller setup</h2><button class="change-mode" data-change-mode>Change role</button></div>
+      <div class="step" data-step="1">
+        <p class="step-title">Create an invitation</p>
+        <p class="step-copy">This gathers network details. It can take up to 30 seconds on some networks.</p>
+        <button id="create-offer">Create invitation</button>
+      </div>
+      <div id="controller-step-2" class="step hidden" data-step="2">
+        <p class="step-title">Send this invitation to the viewer</p>
+        <p class="step-copy">Copy the token and paste it into the viewer's screen.</p>
+        <div id="controller-offer-group" class="hidden">
+          <textarea id="controller-offer" readonly aria-label="Controller invitation token"></textarea>
+          <div class="button-row"><button class="secondary" data-copy="controller-offer">Copy invitation</button><button id="sent-invitation">I've sent it</button></div>
+        </div>
+      </div>
+      <div id="controller-step-3" class="step hidden" data-step="3">
+        <p class="step-title">Paste the viewer response</p>
+        <p class="step-copy">After the viewer creates a response, paste it here to finish connecting.</p>
+        <textarea id="controller-answer" spellcheck="false" placeholder="Paste viewer response"></textarea>
+        <div class="button-row"><button id="accept-answer">Connect viewer</button><button id="start" class="secondary" disabled>Calibrate and start</button></div>
+      </div>
+    </section>
+
+    <section id="viewer-flow" class="flow hidden" aria-labelledby="viewer-heading">
+      <div class="flow-header"><h2 id="viewer-heading">Viewer setup</h2><button class="change-mode" data-change-mode>Change role</button></div>
+      <div class="step" data-step="1">
+        <p class="step-title">Paste the controller invitation</p>
+        <p class="step-copy">Ask the controller to create an invitation, then paste it here.</p>
+        <textarea id="viewer-offer" spellcheck="false" placeholder="Paste controller invitation"></textarea>
+        <div class="button-row"><button id="accept-offer">Create response</button></div>
+      </div>
+      <div id="viewer-step-2" class="step hidden" data-step="2">
+        <p class="step-title">Send this response to the controller</p>
+        <p class="step-copy">The controller uses it to establish the connection. Keep this page open.</p>
+        <div id="viewer-answer-group" class="hidden">
+          <textarea id="viewer-answer" readonly aria-label="Viewer response token"></textarea>
+          <div class="button-row"><button class="secondary" data-copy="viewer-answer">Copy response</button></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="note">Timing is best-effort. Network delay, browser scheduling, and display refresh prevent a guaranteed 1 ms start across independent Internet connections.</p>
+    <footer>Made by <a href="https://github.com/ltr-public/sync-timer">ltr-public</a> &middot; <a href="https://www.gnu.org/licenses/gpl-3.0.html">GNU GPL v3</a></footer>
   </main>
 
   <script src="/config.js"></script>
   <script>
     "use strict";
 
-    const token = document.querySelector("#token");
     const status = document.querySelector("#status");
+    const statusTitle = document.querySelector("#status-title");
+    const statusDetail = document.querySelector("#status-detail");
     const timer = document.querySelector("#timer");
     const bar = document.querySelector("#bar");
     const startButton = document.querySelector("#start");
+    const modePicker = document.querySelector("#mode-picker");
+    const controllerFlow = document.querySelector("#controller-flow");
+    const viewerFlow = document.querySelector("#viewer-flow");
     const iceServers = window.SYNC_TIMER_CONFIG.iceServers;
     let peerConnection;
     let channel;
@@ -60,8 +143,18 @@
     let pendingMeasurements = new Map();
     let sequence = 0;
 
-    function setStatus(title, detail = "") {
-      status.innerHTML = `<strong>${title}</strong>${detail ? ` ${detail}` : ""}`;
+    function setStatus(title, detail = "", tone = "", busy = false) {
+      status.className = `status${tone ? ` is-${tone}` : ""}${busy ? " is-busy" : ""}`;
+      statusTitle.textContent = title;
+      statusDetail.textContent = detail;
+    }
+
+    function selectMode(nextController) {
+      controller = nextController;
+      modePicker.classList.add("hidden");
+      controllerFlow.classList.toggle("hidden", !controller);
+      viewerFlow.classList.toggle("hidden", controller);
+      setStatus(controller ? "Controller mode" : "Viewer mode", controller ? "Create an invitation to begin." : "Paste the controller invitation to begin.");
     }
 
     function encode(description) {
@@ -72,7 +165,7 @@
       try {
         return JSON.parse(atob(value.trim()));
       } catch {
-        throw new Error("The connection token is invalid.");
+        throw new Error("The token is invalid or incomplete.");
       }
     }
 
@@ -81,23 +174,24 @@
       peerConnection = new RTCPeerConnection({ iceServers });
       peerConnection.onconnectionstatechange = () => {
         const state = peerConnection.connectionState;
-        if (state === "failed" || state === "disconnected") setStatus("Connection " + state, "Use TURN for restrictive networks.");
+        if (state === "connecting") setStatus("Connecting devices", "Establishing a direct or relay route. This can take up to 30 seconds.", "", true);
+        if (state === "failed" || state === "disconnected") setStatus("Connection " + state, "The network route was not established. A TURN server may be required.", "error");
       };
-      peerConnection.ondatachannel = (event) => setupChannel(event.channel);
+      peerConnection.ondatachannel = event => setupChannel(event.channel);
       return peerConnection;
     }
 
     function setupChannel(nextChannel) {
       channel = nextChannel;
       channel.onopen = () => {
-        setStatus("Connected", controller ? "Controller can calibrate and start." : "Waiting for the controller.");
+        setStatus("Devices connected", controller ? "Ready to calibrate and start the timer." : "The controller will calibrate and schedule the start.", "success");
         startButton.disabled = !controller;
       };
       channel.onclose = () => {
         startButton.disabled = true;
-        setStatus("Channel closed");
+        setStatus("Connection closed", "Choose a role to create a new connection.", "error");
       };
-      channel.onerror = () => setStatus("Channel error");
+      channel.onerror = () => setStatus("Connection error", "The data channel encountered an error.", "error");
       channel.onmessage = handleMessage;
     }
 
@@ -115,48 +209,67 @@
     }
 
     async function createOffer() {
-      if (peerConnection) throw new Error("Refresh the page to create a new link.");
-      controller = true;
+      if (peerConnection) throw new Error("Refresh the page to create a new connection.");
       const peer = getPeerConnection();
       setupChannel(peer.createDataChannel("sync-timer", { ordered: true }));
+      setStatus("Creating invitation", "Gathering network details. This can take up to 30 seconds.", "", true);
       await peer.setLocalDescription(await peer.createOffer());
       await waitForIceGathering(peer);
-      token.value = encode(peer.localDescription);
-      setStatus("Offer ready", "Copy it to the display device.");
+      document.querySelector("#controller-offer").value = encode(peer.localDescription);
+      document.querySelector("#controller-offer-group").classList.remove("hidden");
+      document.querySelector("#controller-step-2").classList.remove("hidden");
+      setStatus("Invitation ready", "Copy it and send it to the viewer.", "success");
     }
 
     async function acceptOffer() {
-      if (peerConnection) throw new Error("Refresh the page to create a new link.");
-      controller = false;
+      if (peerConnection) throw new Error("Refresh the page to create a new connection.");
       const peer = getPeerConnection();
-      await peer.setRemoteDescription(decode(token.value));
+      setStatus("Creating response", "Gathering network details. This can take up to 30 seconds.", "", true);
+      await peer.setRemoteDescription(decode(document.querySelector("#viewer-offer").value));
       await peer.setLocalDescription(await peer.createAnswer());
       await waitForIceGathering(peer);
-      token.value = encode(peer.localDescription);
-      setStatus("Answer ready", "Copy it to the controller.");
+      document.querySelector("#viewer-answer").value = encode(peer.localDescription);
+      document.querySelector("#viewer-answer-group").classList.remove("hidden");
+      document.querySelector("#viewer-step-2").classList.remove("hidden");
+      setStatus("Response ready", "Copy it back to the controller, then keep this page open.", "success");
     }
 
     async function acceptAnswer() {
-      if (!controller || !peerConnection) throw new Error("Create an offer first.");
-      await peerConnection.setRemoteDescription(decode(token.value));
-      setStatus("Linking", "Waiting for the data channel.");
+      if (!controller || !peerConnection) throw new Error("Create an invitation first.");
+      setStatus("Connecting devices", "Establishing a direct or relay route. This can take up to 30 seconds.", "", true);
+      await peerConnection.setRemoteDescription(decode(document.querySelector("#controller-answer").value));
+    }
+
+    async function copyToken(id, button) {
+      const value = document.querySelector(`#${id}`).value;
+      if (!value) throw new Error("Create the token before copying it.");
+      try {
+        await navigator.clipboard.writeText(value);
+      } catch {
+        const field = document.querySelector(`#${id}`);
+        field.focus();
+        field.select();
+        if (!document.execCommand("copy")) throw new Error("Copy failed. Select the token and copy it manually.");
+      }
+      const originalText = button.textContent;
+      button.textContent = "Copied";
+      window.setTimeout(() => { button.textContent = originalText; }, 1600);
+      setStatus("Token copied", "Paste it on the other device to continue.", "success");
     }
 
     function send(message) {
-      if (!channel || channel.readyState !== "open") throw new Error("The data channel is not open.");
+      if (!channel || channel.readyState !== "open") throw new Error("The devices are not connected.");
       channel.send(JSON.stringify(message));
     }
 
     function handleMessage(event) {
       let message;
       try { message = JSON.parse(event.data); } catch { return; }
-
       if (message.type === "sync-request") {
         const receivedAt = performance.now();
         send({ type: "sync-response", id: message.id, t0: message.t0, t1: receivedAt, t2: performance.now() });
         return;
       }
-
       if (message.type === "sync-response") {
         const pending = pendingMeasurements.get(message.id);
         if (!pending) return;
@@ -164,10 +277,9 @@
         pending.resolve({ ...message, t3: performance.now() });
         return;
       }
-
       if (message.type === "start") {
         schedule(message.displayStartAt);
-        setStatus("Start scheduled", "Controller selected a common future time.");
+        setStatus("Start scheduled", "The timer will begin shortly.", "success");
       }
     }
 
@@ -176,25 +288,21 @@
         const id = ++sequence;
         const timeout = setTimeout(() => {
           pendingMeasurements.delete(id);
-          reject(new Error("Calibration response timed out."));
+          reject(new Error("The viewer did not respond to calibration."));
         }, 1500);
-        pendingMeasurements.set(id, {
-          resolve: response => { clearTimeout(timeout); resolve(response); }
-        });
+        pendingMeasurements.set(id, { resolve: response => { clearTimeout(timeout); resolve(response); } });
         send({ type: "sync-request", id, t0: performance.now() });
       });
     }
 
     async function calibrateAndStart() {
       startButton.disabled = true;
-      setStatus("Calibrating", "Measuring 12 round trips.");
+      setStatus("Calibrating", "Measuring 12 round trips before scheduling the start.", "", true);
       try {
         const samples = [];
         for (let i = 0; i < 12; i += 1) {
           const { t0, t1, t2, t3 } = await takeMeasurement();
-          const rtt = (t3 - t0) - (t2 - t1);
-          const offset = ((t1 - t0) + (t2 - t3)) / 2;
-          samples.push({ rtt, offset });
+          samples.push({ rtt: (t3 - t0) - (t2 - t1), offset: ((t1 - t0) + (t2 - t3)) / 2 });
           await new Promise(resolve => setTimeout(resolve, 60));
         }
         samples.sort((a, b) => a.rtt - b.rtt);
@@ -204,9 +312,9 @@
         const controllerStartAt = performance.now() + 3000;
         send({ type: "start", displayStartAt: controllerStartAt + offset });
         schedule(controllerStartAt);
-        setStatus("Start scheduled", `Estimated network uncertainty: +/- ${uncertainty.toFixed(1)} ms.`);
+        setStatus("Start scheduled", `Estimated network uncertainty: +/- ${uncertainty.toFixed(1)} ms.`, "success");
       } catch (error) {
-        setStatus("Calibration failed", error.message);
+        setStatus("Calibration failed", error.message, "error");
       } finally {
         startButton.disabled = !channel || channel.readyState !== "open";
       }
@@ -230,9 +338,18 @@
       requestAnimationFrame(render);
     }
 
-    document.querySelector("#create-offer").onclick = () => createOffer().catch(error => setStatus("Offer failed", error.message));
-    document.querySelector("#accept-offer").onclick = () => acceptOffer().catch(error => setStatus("Answer failed", error.message));
-    document.querySelector("#accept-answer").onclick = () => acceptAnswer().catch(error => setStatus("Link failed", error.message));
+    document.querySelector("#choose-controller").onclick = () => selectMode(true);
+    document.querySelector("#choose-viewer").onclick = () => selectMode(false);
+    document.querySelectorAll("[data-change-mode]").forEach(button => { button.onclick = () => window.location.reload(); });
+    document.querySelector("#create-offer").onclick = () => createOffer().catch(error => setStatus("Invitation failed", error.message, "error"));
+    document.querySelector("#accept-offer").onclick = () => acceptOffer().catch(error => setStatus("Response failed", error.message, "error"));
+    document.querySelector("#accept-answer").onclick = () => acceptAnswer().catch(error => setStatus("Connection failed", error.message, "error"));
+    document.querySelector("#sent-invitation").onclick = () => {
+      document.querySelector("#controller-step-3").classList.remove("hidden");
+      setStatus("Waiting for viewer response", "Paste the response here when the viewer sends it.");
+      document.querySelector("#controller-answer").focus();
+    };
+    document.querySelectorAll("[data-copy]").forEach(button => { button.onclick = () => copyToken(button.dataset.copy, button).catch(error => setStatus("Copy failed", error.message, "error")); });
     startButton.onclick = calibrateAndStart;
     requestAnimationFrame(render);
   </script>
