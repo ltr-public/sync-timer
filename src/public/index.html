@@ -12,7 +12,7 @@
     h1 { margin: 0; font-size: clamp(1.8rem, 6vw, 2.9rem); letter-spacing: -.055em; line-height: 1; }
     .intro { max-width: 560px; margin: 14px 0 0; color: #5c6169; font-size: .98rem; line-height: 1.55; }
     .timer-panel { margin: 34px 0 20px; padding: clamp(20px, 6vw, 38px); border: 1px solid #e1e3e6; border-radius: 18px; background: #fff; box-shadow: 0 14px 38px rgb(21 25 30 / 5%); }
-    #timer { color: #181a1e; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: clamp(3.2rem, 15vw, 7.3rem); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.08em; line-height: .95; text-align: center; }
+    #timer { display: block; width: 100%; height: clamp(3.2rem, 15vw, 7.3rem); }
     #track { height: 7px; margin-top: 28px; overflow: hidden; border-radius: 999px; background: #e7e8ea; }
     #bar { width: 12%; height: 100%; border-radius: inherit; background: #26292e; transform: translateX(0); }
     .status { display: flex; align-items: flex-start; gap: 12px; min-height: 74px; padding: 15px 17px; border: 1px solid #e1e3e6; border-radius: 12px; background: #fff; }
@@ -74,7 +74,7 @@
     <p class="intro">Use it to coordinate visual cues across devices for filming, presentations, remote demonstrations, or any shared moment where timing matters.</p>
 
     <section class="timer-panel" aria-label="Timer">
-      <div id="timer">00:00:000</div>
+      <canvas id="timer" aria-label="Timer reading 00:00:000" role="img"></canvas>
       <div id="track"><div id="bar"></div></div>
     </section>
     <div id="timer-actions" class="timer-actions hidden"><button id="start" class="start-button" disabled>Schedule and start</button><button id="stop" class="secondary" disabled>Stop timer</button></div>
@@ -157,7 +157,8 @@
     const status = document.querySelector("#status");
     const statusTitle = document.querySelector("#status-title");
     const statusDetail = document.querySelector("#status-detail");
-    const timer = document.querySelector("#timer");
+    const timerCanvas = document.querySelector("#timer");
+    const timerContext = timerCanvas.getContext("2d");
     const bar = document.querySelector("#bar");
     const startButton = document.querySelector("#start");
     const stopButton = document.querySelector("#stop");
@@ -185,6 +186,51 @@
     let largestFrameGap = 0;
     let pendingMeasurements = new Map();
     let sequence = 0;
+    let timerSprites = new Map();
+    let timerMetrics;
+
+    function rebuildTimerSprites() {
+      const bounds = timerCanvas.getBoundingClientRect();
+      const pixelRatio = window.devicePixelRatio || 1;
+      const width = Math.max(1, bounds.width);
+      const height = Math.max(1, bounds.height);
+      timerCanvas.width = Math.round(width * pixelRatio);
+      timerCanvas.height = Math.round(height * pixelRatio);
+      timerContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      timerContext.imageSmoothingEnabled = true;
+
+      const fontSize = Math.floor(height * 0.86);
+      const font = `800 ${fontSize}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
+      timerContext.font = font;
+      const cellWidth = Math.ceil(timerContext.measureText("0").width);
+      timerSprites = new Map();
+      for (const character of "0123456789:") {
+        const sprite = document.createElement("canvas");
+        sprite.width = Math.ceil(cellWidth * pixelRatio);
+        sprite.height = Math.ceil(height * pixelRatio);
+        const context = sprite.getContext("2d");
+        context.scale(pixelRatio, pixelRatio);
+        context.fillStyle = "#181a1e";
+        context.font = font;
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillText(character, cellWidth / 2, height / 2 + fontSize * 0.03);
+        timerSprites.set(character, sprite);
+      }
+      timerMetrics = { width, height, cellWidth };
+      drawTimer("00:00:000");
+    }
+
+    function drawTimer(value) {
+      if (!timerMetrics) return;
+      const { width, height, cellWidth } = timerMetrics;
+      timerContext.clearRect(0, 0, width, height);
+      let x = (width - value.length * cellWidth) / 2;
+      for (const character of value) {
+        timerContext.drawImage(timerSprites.get(character), x, 0, cellWidth, height);
+        x += cellWidth;
+      }
+    }
 
     function setStatus(title, detail = "", tone = "", busy = false) {
       status.className = `status${tone ? ` is-${tone}` : ""}${busy ? " is-busy" : ""}`;
@@ -479,7 +525,7 @@
       armed = false;
       localStartAt = 0;
       controllerStartAt = 0;
-      timer.textContent = "00:00:000";
+      drawTimer("00:00:000");
       bar.style.transform = "translateX(0)";
       if (controller) stopButton.disabled = true;
     }
@@ -561,7 +607,7 @@
         const minutes = String(Math.floor(elapsed / 60000)).padStart(2, "0");
         const seconds = String(Math.floor(elapsed / 1000) % 60).padStart(2, "0");
         const milliseconds = String(Math.floor(elapsed % 1000)).padStart(3, "0");
-        timer.textContent = `${minutes}:${seconds}:${milliseconds}`;
+        drawTimer(`${minutes}:${seconds}:${milliseconds}`);
         bar.style.transform = `translateX(${(elapsed % 1000) / 1000 * 733}%)`;
       }
       requestAnimationFrame(render);
@@ -585,6 +631,9 @@
       reportVisibility();
       if (controller && document.visibilityState !== "visible") setStatus("Controller not ready", "Keep this page visible before scheduling the timer.", "error");
     });
+    if ("ResizeObserver" in window) new ResizeObserver(rebuildTimerSprites).observe(timerCanvas);
+    else window.addEventListener("resize", rebuildTimerSprites);
+    rebuildTimerSprites();
     requestAnimationFrame(render);
   </script>
 </body>
