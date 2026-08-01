@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sync Timer</title>
+  <style>
+    :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #101419; color: #eaf2f4; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; }
+    main { width: min(680px, calc(100% - 32px)); }
+    h1 { margin: 0 0 8px; font-size: 1.15rem; letter-spacing: .08em; text-transform: uppercase; color: #9bb0b7; }
+    #timer { font-size: clamp(3.4rem, 15vw, 7rem); line-height: 1; font-weight: 800; letter-spacing: -.07em; color: #50e8c5; font-variant-numeric: tabular-nums; }
+    #track { height: 8px; margin: 24px 0 36px; overflow: hidden; border-radius: 99px; background: #273138; }
+    #bar { height: 100%; width: 12%; border-radius: inherit; background: #50e8c5; transform: translateX(0); }
+    .status { margin-bottom: 22px; color: #a9b9bf; font-size: .9rem; }
+    .status strong { color: #f5cf72; }
+    label { display: block; margin: 18px 0 7px; font-size: .82rem; color: #a9b9bf; }
+    textarea { width: 100%; min-height: 78px; box-sizing: border-box; resize: vertical; padding: 10px; border: 1px solid #3b4a51; border-radius: 4px; background: #182026; color: #eaf2f4; font: .76rem/1.35 inherit; }
+    .actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 12px; }
+    button { border: 0; border-radius: 4px; padding: 10px 13px; background: #50e8c5; color: #06201b; font: 700 .8rem inherit; cursor: pointer; }
+    button.secondary { background: #2d3a41; color: #eaf2f4; }
+    button:disabled { cursor: not-allowed; opacity: .45; }
+    .note { margin: 25px 0 0; font: .76rem/1.5 system-ui, sans-serif; color: #8c9da4; }
+    code { color: #c4d5da; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Best-effort sync timer</h1>
+    <div id="timer">00:00:000</div>
+    <div id="track"><div id="bar"></div></div>
+    <div class="status" id="status"><strong>Not connected</strong> Create an offer on the controlling device.</div>
+
+    <label for="token">Connection token</label>
+    <textarea id="token" spellcheck="false" placeholder="Offer or answer token"></textarea>
+    <div class="actions">
+      <button id="create-offer">Create offer (controller)</button>
+      <button id="accept-offer" class="secondary">Accept offer (display)</button>
+      <button id="accept-answer" class="secondary">Accept answer (controller)</button>
+      <button id="start" disabled>Calibrate and start</button>
+    </div>
+    <p class="note">Copy the offer to the display, copy its generated answer back to the controller, then start there. The displayed uncertainty is an estimate, not a 1 ms guarantee.</p>
+  </main>
+
+  <script src="/config.js"></script>
+  <script>
+    "use strict";
+
+    const token = document.querySelector("#token");
+    const status = document.querySelector("#status");
+    const timer = document.querySelector("#timer");
+    const bar = document.querySelector("#bar");
+    const startButton = document.querySelector("#start");
+    const iceServers = window.SYNC_TIMER_CONFIG.iceServers;
+    let peerConnection;
+    let channel;
+    let controller = false;
+    let running = false;
+    let localStartAt = 0;
+    let pendingMeasurements = new Map();
+    let sequence = 0;
+
+    function setStatus(title, detail = "") {
+      status.innerHTML = `<strong>${title}</strong>${detail ? ` ${detail}` : ""}`;
+    }
+
+    function encode(description) {
+      return btoa(JSON.stringify(description));
+    }
+
+    function decode(value) {
+      try {
+        return JSON.parse(atob(value.trim()));
+      } catch {
+        throw new Error("The connection token is invalid.");
+      }
+    }
+
+    function getPeerConnection() {
+      if (peerConnection) return peerConnection;
+      peerConnection = new RTCPeerConnection({ iceServers });
+      peerConnection.onconnectionstatechange = () => {
+        const state = peerConnection.connectionState;
+        if (state === "failed" || state === "disconnected") setStatus("Connection " + state, "Use TURN for restrictive networks.");
+      };
+      peerConnection.ondatachannel = (event) => setupChannel(event.channel);
+      return peerConnection;
+    }
+
+    function setupChannel(nextChannel) {
+      channel = nextChannel;
+      channel.onopen = () => {
+        setStatus("Connected", controller ? "Controller can calibrate and start." : "Waiting for the controller.");
+        startButton.disabled = !controller;
+      };
+      channel.onclose = () => {
+        startButton.disabled = true;
+        setStatus("Channel closed");
+      };
+      channel.onerror = () => setStatus("Channel error");
+      channel.onmessage = handleMessage;
+    }
+
+    function waitForIceGathering(peer) {
+      if (peer.iceGatheringState === "complete") return Promise.resolve();
+      return new Promise(resolve => {
+        const checkState = () => {
+          if (peer.iceGatheringState === "complete") {
+            peer.removeEventListener("icegatheringstatechange", checkState);
+            resolve();
+          }
+        };
+        peer.addEventListener("icegatheringstatechange", checkState);
+      });
+    }
+
+    async function createOffer() {
+      if (peerConnection) throw new Error("Refresh the page to create a new link.");
+      controller = true;
+      const peer = getPeerConnection();
+      setupChannel(peer.createDataChannel("sync-timer", { ordered: true }));
+      await peer.setLocalDescription(await peer.createOffer());
+      await waitForIceGathering(peer);
+      token.value = encode(peer.localDescription);
+      setStatus("Offer ready", "Copy it to the display device.");
+    }
+
+    async function acceptOffer() {
+      if (peerConnection) throw new Error("Refresh the page to create a new link.");
+      controller = false;
+      const peer = getPeerConnection();
+      await peer.setRemoteDescription(decode(token.value));
+      await peer.setLocalDescription(await peer.createAnswer());
+      await waitForIceGathering(peer);
+      token.value = encode(peer.localDescription);
+      setStatus("Answer ready", "Copy it to the controller.");
+    }
+
+    async function acceptAnswer() {
+      if (!controller || !peerConnection) throw new Error("Create an offer first.");
+      await peerConnection.setRemoteDescription(decode(token.value));
+      setStatus("Linking", "Waiting for the data channel.");
+    }
+
+    function send(message) {
+      if (!channel || channel.readyState !== "open") throw new Error("The data channel is not open.");
+      channel.send(JSON.stringify(message));
+    }
+
+    function handleMessage(event) {
+      let message;
+      try { message = JSON.parse(event.data); } catch { return; }
+
+      if (message.type === "sync-request") {
+        const receivedAt = performance.now();
+        send({ type: "sync-response", id: message.id, t0: message.t0, t1: receivedAt, t2: performance.now() });
+        return;
+      }
+
+      if (message.type === "sync-response") {
+        const pending = pendingMeasurements.get(message.id);
+        if (!pending) return;
+        pendingMeasurements.delete(message.id);
+        pending.resolve({ ...message, t3: performance.now() });
+        return;
+      }
+
+      if (message.type === "start") {
+        schedule(message.displayStartAt);
+        setStatus("Start scheduled", "Controller selected a common future time.");
+      }
+    }
+
+    function takeMeasurement() {
+      return new Promise((resolve, reject) => {
+        const id = ++sequence;
+        const timeout = setTimeout(() => {
+          pendingMeasurements.delete(id);
+          reject(new Error("Calibration response timed out."));
+        }, 1500);
+        pendingMeasurements.set(id, {
+          resolve: response => { clearTimeout(timeout); resolve(response); }
+        });
+        send({ type: "sync-request", id, t0: performance.now() });
+      });
+    }
+
+    async function calibrateAndStart() {
+      startButton.disabled = true;
+      setStatus("Calibrating", "Measuring 12 round trips.");
+      try {
+        const samples = [];
+        for (let i = 0; i < 12; i += 1) {
+          const { t0, t1, t2, t3 } = await takeMeasurement();
+          const rtt = (t3 - t0) - (t2 - t1);
+          const offset = ((t1 - t0) + (t2 - t3)) / 2;
+          samples.push({ rtt, offset });
+          await new Promise(resolve => setTimeout(resolve, 60));
+        }
+        samples.sort((a, b) => a.rtt - b.rtt);
+        const best = samples.slice(0, 3);
+        const offset = best.reduce((sum, sample) => sum + sample.offset, 0) / best.length;
+        const uncertainty = best[0].rtt / 2;
+        const controllerStartAt = performance.now() + 3000;
+        send({ type: "start", displayStartAt: controllerStartAt + offset });
+        schedule(controllerStartAt);
+        setStatus("Start scheduled", `Estimated network uncertainty: +/- ${uncertainty.toFixed(1)} ms.`);
+      } catch (error) {
+        setStatus("Calibration failed", error.message);
+      } finally {
+        startButton.disabled = !channel || channel.readyState !== "open";
+      }
+    }
+
+    function schedule(startAt) {
+      running = false;
+      localStartAt = startAt;
+      window.setTimeout(() => { running = true; }, Math.max(0, startAt - performance.now()));
+    }
+
+    function render(timestamp) {
+      if (running) {
+        const elapsed = Math.max(0, timestamp - localStartAt);
+        const minutes = String(Math.floor(elapsed / 60000)).padStart(2, "0");
+        const seconds = String(Math.floor(elapsed / 1000) % 60).padStart(2, "0");
+        const milliseconds = String(Math.floor(elapsed % 1000)).padStart(3, "0");
+        timer.textContent = `${minutes}:${seconds}:${milliseconds}`;
+        bar.style.transform = `translateX(${(elapsed % 1000) / 1000 * 733}%)`;
+      }
+      requestAnimationFrame(render);
+    }
+
+    document.querySelector("#create-offer").onclick = () => createOffer().catch(error => setStatus("Offer failed", error.message));
+    document.querySelector("#accept-offer").onclick = () => acceptOffer().catch(error => setStatus("Answer failed", error.message));
+    document.querySelector("#accept-answer").onclick = () => acceptAnswer().catch(error => setStatus("Link failed", error.message));
+    startButton.onclick = calibrateAndStart;
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>

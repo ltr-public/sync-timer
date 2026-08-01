@@ -1,0 +1,12 @@
+{
+  "name": "sync-timer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Best-effort browser timer synchronization over WebRTC",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
