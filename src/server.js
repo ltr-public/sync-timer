@@ -75,6 +75,7 @@ const server = http.createServer(async (request, response) => {
       response.end(request.method === "HEAD" ? undefined : body);
       return;
     }
+
   } catch (error) {
     console.error(error);
     response.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
@@ -132,6 +133,7 @@ function removePeer(peer) {
 
 function closePeer(peer, code = 1000) {
   if (peer.closed) return;
+  console.warn(`Closing WebSocket peer with code ${code}.`);
   peer.closed = true;
   removePeer(peer);
   const payload = Buffer.alloc(2);
