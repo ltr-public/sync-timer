@@ -23,7 +23,9 @@ Open `http://localhost:3000` on both devices. The container must be reachable fr
 2. Copy the invitation to the viewer device.
 3. On the viewer, select **I am the viewer**, paste the invitation, and select **Create response**.
 4. Copy the viewer response into the controller and select **Connect viewer**.
-5. When the status says **Devices connected**, select **Calibrate and start** on the controller.
+5. When the status says **Devices connected**, select **Schedule and start** on the controller.
+
+Use **Stop timer** or **Restart timer** on the controller without reconnecting either device. Select **New connection** to discard the link and connect another device.
 
 The controller takes 12 timing samples, retains the three lowest-latency samples, and schedules a start three seconds in the future. This reduces the effect of jitter but cannot eliminate it.
 
